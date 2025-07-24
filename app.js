@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000
 
 const allowedOrigins = [
   'http://localhost:5173',                   // for local dev
-  'https://kharcha-paani-frontend.netlify.app/'       // for production
+  'https://kharcha-paani-frontend.netlify.app'       // for production
 ];
 
 app.use(cors({
