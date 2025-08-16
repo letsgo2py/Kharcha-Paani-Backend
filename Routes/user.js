@@ -1,6 +1,7 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
 const schedule = require('node-schedule');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { checkAuth } = require("../Middlewares/checkAuth");
 
@@ -15,8 +16,26 @@ const Goal = require('../Models/Goal');
 const router = express.Router();
 
 
+// Custom middleware for verify route - doesn't throw 401, just sets req.user if token exists
+const verifyAuth = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = user;
+    next();
+  } catch (err) {
+    req.user = null;
+    next();
+  }
+};
+
 // This verify if a request is from a logged-in user
-router.get('/verify', async (req, res) => {
+router.get('/verify', verifyAuth, async (req, res) => {
   try {
     if (!req.user) {
       return res.status(200).json({ message: 'Not authenticated' });
@@ -37,7 +56,8 @@ router.post('/logout', (req, res) => {
     res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : undefined
     });
     res.status(200).json({ message: 'Logged out successfully' });
 });

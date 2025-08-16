@@ -37,9 +37,9 @@ router.post('/login', async (req, res) => {
         res.cookie('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            // secure: false,    // Set to false in development (no HTTPS on localhost)
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,  // 1d
+            domain: process.env.NODE_ENV === 'production' ? undefined : undefined  // Let browser handle domain
         });
 
         // console.log("Token from login route: ", token)
