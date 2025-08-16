@@ -42,18 +42,32 @@ router.post('/logout', (req, res) => {
     res.status(200).json({ message: 'Logged out successfully' });
 });
 
+router.get('/balance', async (req, res) => {
+    const id = req.user.id;
+
+    try{
+        const user = await User.findById(id);
+        if(!user) return res.status(404).json({ message: 'User not found' });
+        res.status(200).json({ balance: user.current_balance });
+    }catch(err){
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+    
+});
 
 router.patch('/balance', async (req, res) => {
-    const {email, updateBal} = req.body;
+    const {updateBal} = req.body;
+    const id = req.user.id;
 
     try{
         const user = await User.findOneAndUpdate(
-            { email },
+            { _id: id },
             { current_balance: updateBal },
             { new: true }
         );
 
         if(!user) return res.status(404).json({ message: 'User not found' });
+        res.status(200).json({ balance: user.current_balance });
     }catch(err){
         res.status(500).json({ message: 'Server error', error: err.message });
     }
@@ -101,7 +115,7 @@ router.post('/fetch-givemoney', async (req, res) =>{
     const { userId } = req.body;
 
     try {
-        const records = await GiveMoney.find({ user: userId }).sort({ createdAt: -1 });
+        const records = await GiveMoney.find({ user: userId, marked: false }).sort({ createdAt: -1 });
         res.status(200).json({ records });
     } catch (err) {
         console.error('Error fetching take-money data:', err);
@@ -210,14 +224,22 @@ router.patch('/:id/mark', async (req, res) => {
   const { marked } = req.body;
 
   try {
-    const updated = await TakeMoney.findByIdAndUpdate(
+    let updated = await TakeMoney.findByIdAndUpdate(
       id,
       { marked },
       { new: true }
     );
 
     if (!updated) {
-      return res.status(404).json({ message: 'Transaction not found' });
+      updated = await GiveMoney.findByIdAndUpdate(
+        id,
+        { marked },
+        { new: true }
+      );
+    }
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Transaction not found in either collection' });
     }
 
     res.json(updated);
@@ -226,15 +248,23 @@ router.patch('/:id/mark', async (req, res) => {
   }
 })
 
-router.get('/history/:id', async (req, res) => {
-  const { id } = req.params;
+router.get('/history', async (req, res) => {
+  const id = req.user.id;
 
   try {
-    const records = await TakeMoney.find({
+    const takeMoneyRecords = await TakeMoney.find({
       user: id,
       marked: true
     }).sort({ createdAt: -1 });
 
+    const giveMoneyRecords = await GiveMoney.find({
+      user: id,
+      marked: true
+    }).sort({ createdAt: -1 });
+
+    let records = [...takeMoneyRecords, ...giveMoneyRecords];
+    //sorted by createdAt
+    records = records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.status(200).json({ records });
   } catch (err) {
     console.error('Error fetching data:', err);
@@ -247,7 +277,7 @@ router.get('/history/:id', async (req, res) => {
 
 
 // Get the top goal for the user
-router.get('/top-goal', checkAuth, async (req, res) => {
+router.get('/top-goal',  async (req, res) => {
   const userId = req.user.id; // ✅ Comes from checkAuth middleware
 
   try {
@@ -264,7 +294,7 @@ router.get('/top-goal', checkAuth, async (req, res) => {
 
 
 // Add a new top-goal
-router.post('/top-goal', checkAuth, async (req, res) => {
+router.post('/top-goal', async (req, res) => {
   const { goal, time, cost } = req.body;
   const userId = req.user.id; // ✅ Comes from checkAuth middleware
 
@@ -312,7 +342,7 @@ router.post('/top-goal', checkAuth, async (req, res) => {
 
 
 // Get all the goals for the user
-router.get('/goals', checkAuth, async (req, res) => {
+router.get('/goals', async (req, res) => {
   const userId = req.user.id; 
 
   try {
@@ -325,7 +355,7 @@ router.get('/goals', checkAuth, async (req, res) => {
 });
 
 // Add a new goal
-router.post('/add-goal', checkAuth, async (req, res) => {
+router.post('/add-goal', async (req, res) => {
   const formData = req.body;
   const userId = req.user.id; 
 
