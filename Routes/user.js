@@ -62,7 +62,7 @@ router.post('/logout', (req, res) => {
     res.status(200).json({ message: 'Logged out successfully' });
 });
 
-router.get('/balance', async (req, res) => {
+router.get('/balance', checkAuth, async (req, res) => {
     const id = req.user.id;
 
     try{
@@ -75,7 +75,7 @@ router.get('/balance', async (req, res) => {
     
 });
 
-router.patch('/balance', async (req, res) => {
+router.patch('/balance', checkAuth, async (req, res) => {
     const {updateBal} = req.body;
     const id = req.user.id;
 
@@ -268,7 +268,7 @@ router.patch('/:id/mark', async (req, res) => {
   }
 })
 
-router.get('/history', async (req, res) => {
+router.get('/history', checkAuth, async (req, res) => {
   const id = req.user.id;
 
   try {
@@ -297,7 +297,7 @@ router.get('/history', async (req, res) => {
 
 
 // Get the top goal for the user
-router.get('/top-goal',  async (req, res) => {
+router.get('/top-goal', checkAuth, async (req, res) => {
   const userId = req.user.id; // ✅ Comes from checkAuth middleware
 
   try {
@@ -314,7 +314,7 @@ router.get('/top-goal',  async (req, res) => {
 
 
 // Add a new top-goal
-router.post('/top-goal', async (req, res) => {
+router.post('/top-goal', checkAuth, async (req, res) => {
   const { goal, time, cost } = req.body;
   const userId = req.user.id; // ✅ Comes from checkAuth middleware
 
@@ -393,6 +393,72 @@ router.post('/add-goal', async (req, res) => {
     res.status(201).json({ message: 'Goal created successfully', data: newGoal });
   } catch (error) {
     console.error('Error creating goal:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Update user profile
+router.put('/profile', checkAuth, async (req, res) => {
+  const { name, email, phone, bio } = req.body;
+  const userId = req.user.id;
+
+  try {
+    // Check if email is being changed and if it already exists
+    if (email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+      if (existingUser) {
+        return res.status(409).json({ message: 'Email already exists' });
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { 
+        ...(name && { name }),
+        ...(email && { email }),
+        ...(phone !== undefined && { phone }),
+        ...(bio !== undefined && { bio })
+      },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Profile updated successfully', 
+      data: updatedUser 
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get user transactions (for AccountSummary component)
+router.get('/transactions', checkAuth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const transactions = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
+    res.status(200).json({ data: transactions });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get user goals (for AccountSummary component)
+router.get('/goals', checkAuth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const goals = await Goal.find({ user: userId });
+    res.status(200).json({ data: goals });
+  } catch (error) {
+    console.error('Error fetching goals:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

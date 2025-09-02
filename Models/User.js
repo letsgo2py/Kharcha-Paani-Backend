@@ -15,6 +15,14 @@ const userSchema = new Schema({
         type: String, 
         required: true,
     }, 
+    phone: {
+        type: String,
+        default: ''
+    },
+    bio: {
+        type: String,
+        default: ''
+    },
     current_balance: {
         type: Number, 
         default: 0,
